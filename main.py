@@ -51,8 +51,8 @@ async def signup(user: User):
     if existing_user:
         raise HTTPException(status_code=400, detail="User already exists")
 
-    hashed_pw = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')  
-    users_collection.insert_one({"username": user.username, "password": hashed_pw})
+    hashed_pw = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt())  
+    users_collection.insert_one({"username": user.username, "password": hashed_pw.decode('utf-8')})  # Convert bytes to string
 
     return {"message": "User registered successfully!"}
 
@@ -63,9 +63,8 @@ async def login(user: User):
     if not existing_user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    stored_password = existing_user["password"]
-    if not bcrypt.verify(user.password, stored_password):  # ✅ Correct way to check password
+    stored_password = existing_user["password"].encode('utf-8')  # Convert stored password back to bytes
+    if not bcrypt.checkpw(user.password.encode('utf-8'), stored_password):  # ✅ Corrected: Use checkpw() instead of verify()
         raise HTTPException(status_code=401, detail="Invalid password")
 
     return {"message": "Login successful!"}
-
