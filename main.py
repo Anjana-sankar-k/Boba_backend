@@ -14,7 +14,7 @@ app = FastAPI()
 # Enable CORS for Flutter requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to specific domains later for security
+    allow_origins=["*"],  # Change this to specific domains for security in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -33,6 +33,11 @@ users_collection = db["users"]
 class User(BaseModel):
     username: str
     password: str
+
+# ----------------- ROOT ROUTE -----------------
+@app.get("/")
+async def root():
+    return {"message": "Boba API is live and ready to serve!"}
 
 # ----------------- TEST ROUTE -----------------
 @app.get("/test")
@@ -62,8 +67,3 @@ async def login(user: User):
         return {"message": "Login successful!"}
     else:
         raise HTTPException(status_code=401, detail="Invalid password")
-
-# Run FastAPI with Uvicorn
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
