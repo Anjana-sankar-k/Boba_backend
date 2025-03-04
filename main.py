@@ -60,20 +60,15 @@ async def signup(user: User):
 @app.post("/login")
 async def login(user: User):
     existing_user = users_collection.find_one({"username": user.username})
-    
+
     if not existing_user:
-        raise HTTPException(status_code=401, detail="User not found")
+        raise HTTPException(status_code=401, detail="User not found in database")
 
-    # Debugging print to check stored password format
-    print(f"Stored Password (DB): {existing_user['password']}")  
-    print(f"Entered Password: {user.password}")
+    stored_password = existing_user.get("password")
+    if not stored_password:
+        raise HTTPException(status_code=500, detail="Password field missing in DB")
 
-    # Ensure correct format before checking password
-    stored_password = existing_user["password"]
-    if isinstance(stored_password, str):  
-        stored_password = stored_password.encode('utf-8')  # Convert to bytes if needed
-    
-    if bcrypt.checkpw(user.password.encode('utf-8'), stored_password):
+    if bcrypt.checkpw(user.password.encode('utf-8'), stored_password.encode('utf-8')):
         return {"message": "Login successful!"}
     else:
         raise HTTPException(status_code=401, detail="Invalid password")
