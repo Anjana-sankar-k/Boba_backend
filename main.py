@@ -16,7 +16,7 @@ app = FastAPI()
 # Enable CORS for Streamlit requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins= "https://bobachat.streamlit.app/", 
+    allow_origins=["https://bobachat.streamlit.app"],  # Fixed (list, not string)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,19 +37,16 @@ users_collection.create_index([("location", "2dsphere")])
 # User Model
 class User(BaseModel):
     username: str
+    gmail: str
     password: str
-    latitude: float  # New field
-    longitude: float  # New field
+    bio: str
+    interests: str
+    latitude: float
+    longitude: float
 
-# ----------------- ROOT ROUTE -----------------
-@app.get("/")
-async def root():
-    return {"message": "Boba API is live and ready to serve!"}
-
-# ----------------- ROOT ROUTE -----------------
-@app.get("/")
-async def root():
-    return {"message": "Boba API is live and ready to serve!"}
+class LoginUser(BaseModel):
+    username: str
+    password: str
 
 # ----------------- ROOT ROUTE -----------------
 @app.get("/")
@@ -72,19 +69,34 @@ async def signup(user: User):
 
     new_user = {
         "username": user.username,
+        "gmail": user.gmail,
         "password": hashed_pw.decode('utf-8'),
+        "bio": user.bio,
+        "interests": user.interests,
         "location": {
             "type": "Point",
             "coordinates": [user.longitude, user.latitude]
-        }
+        },
+        "longitude": user.longitude,
+        "latitude": user.latitude
     }
-    users_collection.insert_one(new_user)
+    
+    inserted_user = users_collection.insert_one(new_user)
 
-    return {"message": "User registered successfully!"}
+    return {
+        "message": "User registered successfully!",
+        "_id": str(inserted_user.inserted_id),
+        "username": user.username,
+        "gmail": user.gmail,
+        "bio": user.bio,
+        "interests": user.interests,
+        "longitude": user.longitude,
+        "latitude": user.latitude
+    }
 
 # ----------------- LOGIN -----------------
 @app.post("/login")
-async def login(user: User):
+async def login(user: LoginUser):
     existing_user = users_collection.find_one({"username": user.username})
     if not existing_user:
         raise HTTPException(status_code=401, detail="User not found")
@@ -93,7 +105,16 @@ async def login(user: User):
     if not bcrypt.checkpw(user.password.encode('utf-8'), stored_password):
         raise HTTPException(status_code=401, detail="Invalid password")
 
-    return {"message": "Login successful!", "user_id": str(existing_user["_id"])}
+    return {
+        "message": "Login successful!",
+        "user_id": str(existing_user["_id"]),
+        "username": existing_user["username"],
+        "gmail": existing_user["gmail"],
+        "bio": existing_user["bio"],
+        "interests": existing_user["interests"],
+        "longitude": existing_user["longitude"],
+        "latitude": existing_user["latitude"]
+    }
 
 # ----------------- GET PROXIMITY-BASED MATCHES -----------------
 @app.get("/matches/{user_id}")
@@ -113,4 +134,16 @@ async def get_nearby_users(user_id: str, max_distance: float = 5000):  # Default
         }
     })
 
-    return dumps(list(nearby_users))  # Convert MongoDB cursor to JSON
+    users_list = []
+    for u in nearby_users:
+        users_list.append({
+            "_id": str(u["_id"]),
+            "username": u["username"],
+            "gmail": u["gmail"],
+            "bio": u["bio"],
+            "interests": u["interests"],
+            "longitude": u["longitude"],
+            "latitude": u["latitude"]
+        })
+
+    return {"matches": users_list}  # Return list of nearby users
