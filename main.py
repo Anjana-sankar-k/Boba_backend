@@ -46,6 +46,11 @@ class User(BaseModel):
 async def root():
     return {"message": "Boba API is live and ready to serve!"}
 
+# ----------------- ROOT ROUTE -----------------
+@app.get("/")
+async def root():
+    return {"message": "Boba API is live and ready to serve!"}
+
 # ----------------- TEST ROUTE -----------------
 @app.get("/test")
 async def test():
