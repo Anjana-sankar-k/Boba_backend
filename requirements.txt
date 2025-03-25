@@ -3,4 +3,3 @@ uvicorn
 pymongo
 bcrypt
 python-dotenv
-bson
