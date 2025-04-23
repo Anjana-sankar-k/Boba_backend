@@ -14,18 +14,18 @@ app = FastAPI()
 
 # Allow React Native (Expo) dev and prod requests
 origins = [
-    "http://localhost:8081",
-    "http://localhost:19006",
-    "http://localhost:3000",
-    "*"
+    "http://localhost:8081",  # React Native development (Expo)
+    "http://localhost:19006",  # Expo dev server
+    "http://localhost:3000",  # React web app
+    "*",  # This allows all domains (you can restrict this later if needed)
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,  # Allow the listed origins to access this backend
+    allow_credentials=True,  # Allow cookies to be included in requests
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers (use cautiously in production)
 )
 
 # MongoDB connection
