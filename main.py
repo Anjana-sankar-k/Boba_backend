@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 from pydantic import BaseModel
@@ -12,20 +12,19 @@ load_dotenv()
 
 app = FastAPI()
 
-# Allow React Native (Expo) dev and prod requests
 origins = [
-    "http://localhost:8081",  # React Native development (Expo)
-    "http://localhost:19006",  # Expo dev server
-    "http://localhost:3000",  # React web app
-    "*",  # This allows all domains (you can restrict this later if needed)
+    "http://localhost:8081",
+    "http://localhost:19006",
+    "http://localhost:3000",
+    "*",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Allow the listed origins to access this backend
-    allow_credentials=True,  # Allow cookies to be included in requests
-    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allow all headers (use cautiously in production)
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # MongoDB connection
@@ -38,10 +37,32 @@ db = client["boba_db"]
 users_collection = db["users"]
 connections_collection = db["connections"]
 
-# Ensure geospatial index
 users_collection.create_index([("location", "2dsphere")])
 
-# ---------------- Models ----------------
+# WebSocket manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, WebSocket] = {}
+
+    async def connect(self, user_id: str, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections[user_id] = websocket
+
+    def disconnect(self, user_id: str):
+        self.active_connections.pop(user_id, None)
+
+    async def send_personal_message(self, message: str, user_id: str):
+        websocket = self.active_connections.get(user_id)
+        if websocket:
+            await websocket.send_text(message)
+
+    async def broadcast(self, message: str):
+        for ws in self.active_connections.values():
+            await ws.send_text(message)
+
+manager = ConnectionManager()
+
+# Models
 class User(BaseModel):
     username: str
     gmail: str
@@ -58,8 +79,6 @@ class LoginUser(BaseModel):
 class ConnectRequest(BaseModel):
     from_user_id: str
     to_user_id: str
-
-# ---------------- Routes ----------------
 @app.get("/")
 async def root():
     return {"message": "Boba API is live and ready to serve!"}
@@ -157,8 +176,6 @@ async def get_nearby_users(user_id: str, max_distance: float = 5000):
 
     return {"matches": users_list}
 
-# ---------------- NEW ENDPOINTS ----------------
-
 @app.get("/user/{user_id}")
 async def get_user_details(user_id: str):
     user = users_collection.find_one({"_id": ObjectId(user_id)})
@@ -179,7 +196,6 @@ async def send_connection_request(req: ConnectRequest):
     if req.from_user_id == req.to_user_id:
         raise HTTPException(status_code=400, detail="Cannot connect with yourself")
 
-    # Check if connection already exists to prevent duplicates
     existing = connections_collection.find_one({
         "from": req.from_user_id,
         "to": req.to_user_id
@@ -190,18 +206,20 @@ async def send_connection_request(req: ConnectRequest):
             "to": req.to_user_id
         })
 
-    # Check if the other user already connected back
     reverse = connections_collection.find_one({
         "from": req.to_user_id,
         "to": req.from_user_id
     })
 
     if reverse:
+        await manager.send_personal_message("🎉 You matched with someone!", req.from_user_id)
+        await manager.send_personal_message("🎉 You matched with someone!", req.to_user_id)
         return {
             "message": "It's a match! 🎉",
             "connected": True
         }
     else:
+        await manager.send_personal_message("Someone sent you a connection request!", req.to_user_id)
         return {
             "message": "Connection request sent! Waiting for other user...",
             "connected": False
@@ -219,3 +237,13 @@ async def get_mutual_connections(user_id: str):
             mutuals.append(to_id)
 
     return {"mutuals": mutuals}
+
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await manager.connect(user_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await manager.send_personal_message(f"You said: {data}", user_id)
+    except WebSocketDisconnect:
+        manager.disconnect(user_id)
