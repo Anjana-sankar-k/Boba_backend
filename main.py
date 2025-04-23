@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 from bson import ObjectId
 import json
+from uvicorn import run
 
 # Load environment variables
 load_dotenv()
@@ -288,3 +289,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     finally:
         print(f"📴 Cleaning up WebSocket for user: {user_id}")
         manager.disconnect(user_id)
+
+
+if __name__ == "__main__":
+    # Read the port from the environment variable
+    port = int(os.getenv("PORT", 8000))  # Default to 8000 if not found
+    run(app, host="0.0.0.0", port=port)
