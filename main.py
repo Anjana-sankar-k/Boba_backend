@@ -240,14 +240,24 @@ async def get_mutual_connections(user_id: str):
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    await manager.connect(user_id, websocket)  # Accept and add the WebSocket to active connections
     try:
+        print(f"🟢 Attempting connection for user: {user_id}")
+        await manager.connect(user_id, websocket)
+        print(f"✅ User {user_id} connected via WebSocket")
+
         while True:
-            # The connection is alive, waiting for data from the user
-            data = await websocket.receive_text()  # Receive message from the WebSocket
-            # For now, we're just echoing the received message back to the same user
-            await manager.send_personal_message(f"You said: {data}", user_id)
+            try:
+                data = await websocket.receive_text()
+                print(f"📩 Received from {user_id}: {data}")
+                await manager.send_personal_message(f"You said: {data}", user_id)
+            except Exception as e:
+                print(f"⚠️ Error receiving/sending message for {user_id}: {e}")
+                break
+
     except WebSocketDisconnect:
-        # User disconnected, remove their connection from active connections
+        print(f"🔌 User {user_id} disconnected")
         manager.disconnect(user_id)
-        print(f"User {user_id} disconnected.")
+    except Exception as e:
+        print(f"❌ Unexpected WebSocket error for user {user_id}: {e}")
+        manager.disconnect(user_id)
+
