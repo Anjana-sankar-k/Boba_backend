@@ -6,6 +6,7 @@ import bcrypt
 import os
 from dotenv import load_dotenv
 from bson import ObjectId
+import json
 
 # Load environment variables
 load_dotenv()
