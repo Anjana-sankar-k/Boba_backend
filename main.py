@@ -254,7 +254,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
                 try:
                     msg_data = json.loads(data)
-                    to_user = msg_data.get("to")
+                    to_user = msg_data.get("toUserId")
                     message = msg_data.get("message")
 
                     if to_user:
