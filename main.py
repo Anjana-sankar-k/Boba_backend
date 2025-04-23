@@ -79,6 +79,7 @@ class LoginUser(BaseModel):
 class ConnectRequest(BaseModel):
     from_user_id: str
     to_user_id: str
+
 @app.get("/")
 async def root():
     return {"message": "Boba API is live and ready to serve!"}
@@ -270,4 +271,3 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     finally:
         print(f"📴 Cleaning up WebSocket for user: {user_id}")
         manager.disconnect(user_id)
-
