@@ -14,10 +14,10 @@ app = FastAPI()
 
 # Allow React Native (Expo) dev and prod requests
 origins = [
-    "http://localhost:8081",   # Expo Go on local
-    "http://localhost:19006",  # Expo web preview
-    "http://localhost:3000",   # If testing on React web
-    "*"  # TEMP: for development only — allow all
+    "http://localhost:8081",
+    "http://localhost:19006",
+    "http://localhost:3000",
+    "*"
 ]
 
 app.add_middleware(
@@ -36,6 +36,7 @@ if not MONGO_URI:
 client = MongoClient(MONGO_URI)
 db = client["boba_db"]
 users_collection = db["users"]
+connections_collection = db["connections"]
 
 # Ensure geospatial index
 users_collection.create_index([("location", "2dsphere")])
@@ -53,6 +54,10 @@ class User(BaseModel):
 class LoginUser(BaseModel):
     username: str
     password: str
+
+class ConnectRequest(BaseModel):
+    from_user_id: str
+    to_user_id: str
 
 # ---------------- Routes ----------------
 @app.get("/")
@@ -138,7 +143,6 @@ async def get_nearby_users(user_id: str, max_distance: float = 5000):
 
     users_list = []
     for u in nearby_users:
-        # Skip self
         if str(u["_id"]) == user_id:
             continue
         users_list.append({
@@ -152,3 +156,44 @@ async def get_nearby_users(user_id: str, max_distance: float = 5000):
         })
 
     return {"matches": users_list}
+
+# ---------------- NEW ENDPOINTS ----------------
+
+@app.get("/user/{user_id}")
+async def get_user_details(user_id: str):
+    user = users_collection.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "_id": str(user["_id"]),
+        "username": user["username"],
+        "gmail": user["gmail"],
+        "bio": user["bio"],
+        "interests": user["interests"],
+        "longitude": user["longitude"],
+        "latitude": user["latitude"]
+    }
+
+@app.post("/connect")
+async def send_connection_request(req: ConnectRequest):
+    if req.from_user_id == req.to_user_id:
+        raise HTTPException(status_code=400, detail="Cannot connect with yourself")
+
+    connections_collection.insert_one({
+        "from": req.from_user_id,
+        "to": req.to_user_id
+    })
+    return {"message": "Connection request sent!"}
+
+@app.get("/connections/{user_id}")
+async def get_mutual_connections(user_id: str):
+    sent = connections_collection.find({"from": user_id})
+    sent_ids = [c["to"] for c in sent]
+
+    mutuals = []
+    for to_id in sent_ids:
+        reverse = connections_collection.find_one({"from": to_id, "to": user_id})
+        if reverse:
+            mutuals.append(to_id)
+
+    return {"mutuals": mutuals}
