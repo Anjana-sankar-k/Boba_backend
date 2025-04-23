@@ -249,8 +249,24 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         while True:
             try:
                 data = await websocket.receive_text()
-                print(f"📨 Message from {user_id}: {data}")
-                await manager.send_personal_message(f"You said: {data}", user_id)
+                print(f"📨 Raw message from {user_id}: {data}")
+
+                try:
+                    msg_data = json.loads(data)
+                    to_user = msg_data.get("to")
+                    message = msg_data.get("message")
+
+                    if to_user:
+                        await manager.send_personal_message(f"{user_id} says: {message}", to_user)
+                        print(f"📤 Forwarded message from {user_id} ➡️ {to_user}")
+                    else:
+                        print(f"⚠️ No 'to' field in message from {user_id}")
+
+                    # Optional: echo back to sender too
+                    await manager.send_personal_message(f"You said: {message}", user_id)
+
+                except Exception as e:
+                    print(f"❌ Error parsing message from {user_id}: {e}")
 
             except WebSocketDisconnect:
                 print(f"🔌 WebSocket disconnected during message receive: {user_id}")
