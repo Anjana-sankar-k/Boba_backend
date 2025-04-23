@@ -241,23 +241,33 @@ async def get_mutual_connections(user_id: str):
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
     try:
-        print(f"🟢 Attempting connection for user: {user_id}")
+        print(f"🟢 Attempting WebSocket connection for user: {user_id}")
         await manager.connect(user_id, websocket)
-        print(f"✅ User {user_id} connected via WebSocket")
+        print(f"✅ WebSocket connected: {user_id}")
 
         while True:
             try:
                 data = await websocket.receive_text()
-                print(f"📩 Received from {user_id}: {data}")
+                print(f"📨 Message from {user_id}: {data}")
                 await manager.send_personal_message(f"You said: {data}", user_id)
-            except Exception as e:
-                print(f"⚠️ Error receiving/sending message for {user_id}: {e}")
+
+            except WebSocketDisconnect:
+                print(f"🔌 WebSocket disconnected during message receive: {user_id}")
+                break
+
+            except Exception as inner_error:
+                print(f"⚠️ Error during message handling for {user_id}: {inner_error}")
                 break
 
     except WebSocketDisconnect:
-        print(f"🔌 User {user_id} disconnected")
+        print(f"🚪 User {user_id} forcibly disconnected during connection setup")
         manager.disconnect(user_id)
-    except Exception as e:
-        print(f"❌ Unexpected WebSocket error for user {user_id}: {e}")
+
+    except Exception as outer_error:
+        print(f"🔥 Fatal error in WebSocket for user {user_id}: {outer_error}")
+        manager.disconnect(user_id)
+
+    finally:
+        print(f"📴 Cleaning up WebSocket for user: {user_id}")
         manager.disconnect(user_id)
 
