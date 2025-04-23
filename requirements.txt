@@ -1,5 +1,6 @@
 fastapi
 uvicorn
 pymongo
-bcrypt
 python-dotenv
+bcrypt
+dnspython
