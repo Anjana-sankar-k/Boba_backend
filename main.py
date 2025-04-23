@@ -179,11 +179,33 @@ async def send_connection_request(req: ConnectRequest):
     if req.from_user_id == req.to_user_id:
         raise HTTPException(status_code=400, detail="Cannot connect with yourself")
 
-    connections_collection.insert_one({
+    # Check if connection already exists to prevent duplicates
+    existing = connections_collection.find_one({
         "from": req.from_user_id,
         "to": req.to_user_id
     })
-    return {"message": "Connection request sent!"}
+    if not existing:
+        connections_collection.insert_one({
+            "from": req.from_user_id,
+            "to": req.to_user_id
+        })
+
+    # Check if the other user already connected back
+    reverse = connections_collection.find_one({
+        "from": req.to_user_id,
+        "to": req.from_user_id
+    })
+
+    if reverse:
+        return {
+            "message": "It's a match! 🎉",
+            "connected": True
+        }
+    else:
+        return {
+            "message": "Connection request sent! Waiting for other user...",
+            "connected": False
+        }
 
 @app.get("/connections/{user_id}")
 async def get_mutual_connections(user_id: str):
